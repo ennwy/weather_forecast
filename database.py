@@ -1,96 +1,125 @@
-"""A."""
-
+"""Dockstring might be here."""
 
 import sqlite3
-import datetime
+from secondary_functions import 
 
 
 class DataBase:
     """Class for managing database tables."""
-    def __init__(self, db_name):
+    def __init__(self, db_name="weather_db.db"):
         self.db_name = db_name
+
+    def execute(
+            self,
+            sql,
+            data: tuple=tuple(),
+            commit: bool=False,
+            fetchall=False,
+            fetchmany=0,
+            fetchone=False
+            ):
+        """Useful execute."""
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+
+        cursor.execute(sql, data)
+        parameters = self.get_fetched_data(cursor,
+                                     fetchall,
+                                     fetchmany,
+                                     fetchone
+                                     )
+        if commit:
+            conn.commit()
+
+        return parameters
+
+
+    def get_fetched_data(
+            self,
+            cursor,
+            fetchall,
+            fetchmany,
+            fetchone
+            ):
+        """Checks execute function for fetch argument."""
+        data = ()
+
+        if fetchall:
+            data = cursor.fetchall()
+        elif fetchmany >= 1:
+            data = cursor.fetchmany(fetchmany)
+        elif fetchone:
+            data = cursor.fetchone()
+
+        return data
 
 
     def clear_db(self):
         """Delete all data from the database."""
-        self.conn = sqlite3.connect(self.db_name)
-        self.cursor = self.conn.cursor()
+        sql = """
+        DELETE FROM 
+        weather_forecast;
+        """
+        self.execute(sql, commit=True)
 
-        self.cursor.execute("DELETE FROM weather_forecast;")
-        self.conn.commit()
-        self.conn.close()
 
-
-    def make_db(self):
+    def create_db(self):
         "Announces the table."""
-        self.conn = sqlite3.connect(self.db_name)
-        self.cursor = self.conn.cursor()
-
-        self.cursor.execute("""CREATE TABLE weather_forecast
-        (city text,
-        date integer,
-        temp real,
-        pcp real,
-        clouds integer,
-        pressure integer,
-        humidity integer,
-        wind_speed real)
-        ;""")
-        self.conn.commit()
-        self.conn.close()
+        sql = """
+        CREATE TABLE weather_forecast (
+                    city text,
+                    date integer,
+                    temp real,
+                    pcp real,
+                    clouds integer,
+                    pressure integer,
+                    humidity integer,
+                    wind_speed real
+                    );
+        """
+        self.execute(sql, commit=True)
 
 
-    def insert_data(self, parameters):
+    def insert(self, parameters):
         """Insert data in table."""
-        self.conn = sqlite3.connect(self.db_name)
-        self.cursor = self.conn.cursor()
+        sql = """
+        INSERT INTO
+            weather_forecast
+        VALUES
+            (?,?,?,?,?,?,?,?);
+        """
+        self.execute(sql, parameters, commit=True)
 
-        sql = "INSERT INTO weather_forecast VALUES (?,?,?,?,?,?,?,?);"
-        self.cursor.executemany(sql, [parameters])
 
-        self.conn.commit()
-        self.conn.close()
-
-
-    def announce_db(self):
+    def init_db(self):
         """Checks if database already exist."""
         try:
-            self.make_db()
+            self.create_db()
         except sqlite3.OperationalError:
             self.clear_db()
 
 
-    def connection(self, function):
-        """Stupid attemp to create decorator."""
-        def wrapper():
-            self.conn = sqlite3.connect(self.db_name)
-            self.cursor = self.conn.cursor()
-
-            self.function()
-            self.conn.close()
-        return wrapper()
-
-
     def get_unic_cities(self):
         """Returns list with unic cities."""
-        self.conn = sqlite3.connect(self.db_name)
-        self.cursor = self.conn.cursor()
-        cities_list = []
-        cities = self.cursor.execute("SELECT DISTINCT city FROM weather_forecast;")
-        for city in cities:
-            cities_list += city
-        self.conn.close()
-        return cities_list
+        sql = """
+        SELECT DISTINCT
+            city
+        FROM
+            weather_forecast;
+        """
+        cities = self.execute(sql, fetchall=True)
+        cities = unpack_list_with_lists(cities)
+        return cities
 
-
-    def get_all(self):
+    def get_all_data(self):
         """Returns all table data."""
-        self.conn = sqlite3.connect(self.db_name)
-        self.cursor = self.conn.cursor()
-        self.cursor.execute("SELECT * FROM weather_forecast;")
-        result = self.cursor.fetchall()
-        self.conn.close()
-        return result
+        sql = """
+        SELECT * FROM
+        weather_forecast;
+        """
+        data = self.execute(sql, fetchall=True)
+        data = parse_data_from_list(data)
+        return data
 
 
     def get_mean(self, args):
@@ -98,41 +127,47 @@ class DataBase:
         Returns the average of the
         selected value for the selected city.
         """
-        self.conn = sqlite3.connect(self.db_name)
-        self.cursor = self.conn.cursor()
-        avg = 0
+        city, value_type = args["city"], args["value_type"]
+        validiti = is_data_valid(value_type)
 
-        sql = f"SELECT city, {args['value_type']} FROM weather_forecast;"
-        for city, value in self.cursor.execute(sql):
-            if city == args['city']:
-                try:
-                    avg += float(value)
-                except TypeError:
-                    return {"ERROR": "Enter another value_type!"}
+        if not validity:
+            return "Invalid parameter 'value_type'"
 
-        args["value_type"] = avg / 7
-        self.conn.close()
+        sql = f"""
+        SELECT
+            {value_type}  
+        FROM
+            weather_forecast
+        WHERE
+            city=?;
+        """
+
+        data = self.execute(sql, [city], fetchall=True)
+
+        values = unpack_list_with_lists(data)
+        args["value_type"] = sum(values) / len(values)
         return args
 
 
     def slice_data(self, args):
         """Returns a piece of data truncated by date."""
-        self.conn = sqlite3.connect(self.db_name)
-        self.cursor = self.conn.cursor()
+        sql = """
+        SELECT * FROM
+            weather_forecast
+        WHERE
+            ? < date
+        AND
+            date < ?
+        AND
+            city = ?;
+        """
+        city = args["city"].lower()
+        start, end = args["start_dt"].lower(), args["end_dt"].lower()
+        start, end = parse_date_to_timestamp((start, end))
 
-        sliced = {}
-        slice_started = False
-        for data in self.cursor.execute("SELECT * FROM weather_forecast;"):
-            date = datetime.datetime.fromtimestamp(int(data[1])).strftime("%d.%m.%Y")
-            if args["start_dt"] == date:
-                slice_started = True
-
-            if args["city"] == data[0] and slice_started:
-                sliced[args["city"] + " " + date] = data[2:]
-
-            if date == args["end_dt"]:
-                self.conn.close()
-                return sliced
+        data = self.execute(sql, [start, end, city], fetchall=True)
+        data = parse_data_from_list(data)
+        return data
 
 
     def get_moving_mean(self, args):
@@ -140,17 +175,16 @@ class DataBase:
         Returns the moving average of the
         selected value for the selected city.
         """
-        self.conn =  sqlite3.connect(self.db_name)
-        self.cursor = self.conn.cursor()
+        city, value_type = args["city"], args["value_type"]
 
-        moving_mean = 0
-
-        sql = f"SELECT city, {args['value_type']} FROM weather_forecast;"
-        for city, value in self.cursor.execute(sql):
-            if city == args['city']:
-                try:
-                    moving_mean += float(value)
-                except:
-                    return {"ERROR": "Enter another value_type!"}
-        self.conn.close()
-        return {args['value_type']: moving_mean / 7}
+        sql = f"""
+        SELECT
+            {value_type}
+        FROM
+            weather_forecast
+        WHERE
+            city=?;
+        """
+        data = self.execute(sql, [city], fetchall=True)
+        values = unpack_list_with_lists(data)
+        return sum(values) / len(values)
