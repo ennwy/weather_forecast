@@ -1,13 +1,16 @@
 """Dockstring might be here."""
 
+
 import sqlite3
-from secondary_functions import 
+from secondary_functions import *
 
 
 class DataBase:
     """Class for managing database tables."""
+
     def __init__(self, db_name="weather_db.db"):
         self.db_name = db_name
+
 
     def execute(
             self,
@@ -41,7 +44,7 @@ class DataBase:
             fetchmany,
             fetchone
             ):
-        """Checks execute function for fetch argument."""
+        """Check execute function for fetch argument."""
         data = ()
 
         if fetchall:
@@ -64,7 +67,7 @@ class DataBase:
 
 
     def create_db(self):
-        "Announces the table."""
+        """Create the table with named columns."""
         sql = """
         CREATE TABLE weather_forecast (
                     city text,
@@ -92,7 +95,7 @@ class DataBase:
 
 
     def init_db(self):
-        """Checks if database already exist."""
+        """Check if database already exist."""
         try:
             self.create_db()
         except sqlite3.OperationalError:
@@ -100,7 +103,7 @@ class DataBase:
 
 
     def get_unic_cities(self):
-        """Returns list with unic cities."""
+        """Return list with unic cities."""
         sql = """
         SELECT DISTINCT
             city
@@ -112,10 +115,12 @@ class DataBase:
         return cities
 
     def get_all_data(self):
-        """Returns all table data."""
+        """Return all table data."""
         sql = """
-        SELECT * FROM
-        weather_forecast;
+        SELECT
+            *
+        FROM
+            weather_forecast;
         """
         data = self.execute(sql, fetchall=True)
         data = parse_data_from_list(data)
@@ -124,13 +129,12 @@ class DataBase:
 
     def get_mean(self, args):
         """
-        Returns the average of the
+        Return the average of the
         selected value for the selected city.
         """
         city, value_type = args["city"], args["value_type"]
-        validiti = is_data_valid(value_type)
 
-        if not validity:
+        if not is_data_valid(value_type):
             return "Invalid parameter 'value_type'"
 
         sql = f"""
@@ -150,7 +154,7 @@ class DataBase:
 
 
     def slice_data(self, args):
-        """Returns a piece of data truncated by date."""
+        """Return a piece of data truncated by date."""
         sql = """
         SELECT * FROM
             weather_forecast
@@ -162,7 +166,7 @@ class DataBase:
             city = ?;
         """
         city = args["city"].lower()
-        start, end = args["start_dt"].lower(), args["end_dt"].lower()
+        start, end = args["start_dt"], args["end_dt"]
         start, end = parse_date_to_timestamp((start, end))
 
         data = self.execute(sql, [start, end, city], fetchall=True)
@@ -172,10 +176,10 @@ class DataBase:
 
     def get_moving_mean(self, args):
         """
-        Returns the moving average of the
+        Return the moving average of the
         selected value for the selected city.
         """
-        city, value_type = args["city"], args["value_type"]
+        city, value_type = args["city"].lower(), args["value_type"].lower()
 
         sql = f"""
         SELECT

@@ -9,7 +9,7 @@ from coordinates import *
 from database import DataBase
 
 
-cities = ["surgut", "tula", "znamyanka", "Ukraine, pokrov, Dnipropetrovsk Oblast"]
+cities = ["surgut", "tula", "znamyanka", "Ukraine, pokrov, Dnipropetrovsk Oblast", "moscow"]
 api = "8f6fe32c8781671c86b0e9941a7f061f"
 
 
